@@ -1,4 +1,6 @@
+# frozen_string_literal: true
 
+# this class provides blueprint for oystercard instances
 class Oystercard
   MAX_BALANCE = 90
 
@@ -9,7 +11,8 @@ class Oystercard
   end
 
   def top_up(amount)
-    raise 'Max balance is #{MAX_BALANCE}' if amount + @balance > MAX_BALANCE
+    raise "Max balance is #{MAX_BALANCE}" if amount + @balance > MAX_BALANCE
+
     @balance += amount
   end
 end
