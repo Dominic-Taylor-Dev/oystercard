@@ -21,29 +21,34 @@ describe Oystercard do
     before(:each) do
       subject.top_up(10)
     end
-    
+
     describe '#touch_in' do
-      it 'changes in_journey status from false to true' do
-        subject.touch_in
-        expect(subject.in_journey?).to eq(true)
-      end
-    end
-  
-    describe '#touch_out' do
-      it 'changes in_journey status from true to false' do
-        subject.touch_in
-        subject.touch_out
-        expect(subject.in_journey?).to eq(false)
-      end
-    end
+      context 'when card used to touch in at doubled station' do
+        let(:entry_station) { double :entry_station }
+        let(:exit_station) { double :exit_station }
 
-    describe '#deduct' do
-      it 'can decrease balance' do
-        expect { subject.deduct 1 }.to change { subject.balance}. by(-1)
-      end
+        before(:each) do
+          subject.touch_in(entry_station)
+        end
 
-      it 'throws an exception if trying to deduct more than min balance allows' do
-        expect { subject.deduct(subject.balance - Oystercard::MIN_BALANCE + 1)}.to raise_error("Min balance is #{Oystercard::MIN_BALANCE}")
+        it 'changes in_journey status to true' do
+          expect(subject.in_journey?).to eq(true)
+        end
+
+        it 'sets entry station' do
+          expect(subject.journey[:entry_station]).to eq(entry_station)
+        end
+
+        describe '#touch_out' do
+          it 'changes in_journey status from true to false' do
+            subject.touch_out(exit_station)
+            expect(subject.in_journey?).to eq(false)
+          end
+
+          it 'decreases balance by minimum balance (£1) when touching out' do
+            expect { subject.touch_out(exit_station) }.to change { subject.balance }.by(-Oystercard::MIN_CHARGE)
+          end
+        end
       end
     end
   end
@@ -52,5 +57,20 @@ describe Oystercard do
     it 'in_journey should be false by default' do
       expect(subject).not_to be_in_journey
     end
+  end
+
+  describe '#history' do
+  let(:entry_station) { double :entry_station }
+  let(:exit_station) { double :exit_station }
+
+  before(:each) do
+    subject.top_up(10)
+    subject.touch_in(entry_station)
+    subject.touch_out(exit_station)
+  end
+
+  it 'returns instance variable with entry and exit station recorded' do
+    expect(subject.history).to include({entry_station: entry_station, exit_station: exit_station})
+  end
   end
 end
