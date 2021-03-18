@@ -1,76 +1,71 @@
 # frozen_string_literal: true
 
-require_relative '../lib/oystercard'
+require 'oystercard'
+require 'journey'
 
 describe Oystercard do
-  it 'should initialize with a balance of zero' do
+  it 'has a balance of zero' do
     expect(subject.balance).to eq(0)
   end
 
   describe '#top_up' do
-    it 'can increase balance' do
-      expect { subject.top_up 1 }.to change { subject.balance }.by 1
+    it { is_expected.to respond_to(:top_up).with(1).argument }
+
+    it 'can top up the balance' do
+      expect { subject.top_up(1) }.to change { subject.balance }.by 1
     end
 
-    it 'throws exception if trying to top up to more than max balance' do
-      expect { subject.top_up(Oystercard::MAX_BALANCE + 1) }.to raise_error("Max balance is #{Oystercard::MAX_BALANCE}")
+    it 'cannot exceed balance limit total' do
+      balance_limit = Oystercard::BALANCE_LIMIT + 1
+      expect { subject.top_up(balance_limit) }.to raise_error("top up limit of £#{Oystercard::BALANCE_LIMIT} reached")
     end
   end
 
-  context 'when balance starts non-zero (10)' do
-    before(:each) do
-      subject.top_up(10)
-    end
+  context 'when used to touch in at station' do
+    let(:entry_station) { double :entry_station }
+    let(:exit_station) { double :exit_station }
 
     describe '#touch_in' do
-      context 'when card used to touch in at doubled station' do
-        let(:entry_station) { double :entry_station }
-        let(:exit_station) { double :exit_station }
+      it 'can touch in' do
+        subject.top_up(60)
+        expect(subject.touch_in(entry_station)).to be_truthy
+      end
 
-        before(:each) do
-          subject.touch_in(entry_station)
-        end
+      it 'raises error if card has insufficient funds' do
+        subject.top_up(Oystercard::BALANCE_MINIMUM)
+        expect { subject.touch_in(entry_station) }.to raise_error('Insufficient funds')
+      end
 
-        it 'changes in_journey status to true' do
-          expect(subject.in_journey?).to eq(true)
-        end
+      it 'records entry station' do
+        subject.top_up(60)
+        subject.touch_in(entry_station)
+        expect(subject.journey.entry_station).to eq(entry_station)
+      end
 
-        it 'sets entry station' do
-          expect(subject.journey[:entry_station]).to eq(entry_station)
-        end
-
-        describe '#touch_out' do
-          it 'changes in_journey status from true to false' do
-            subject.touch_out(exit_station)
-            expect(subject.in_journey?).to eq(false)
-          end
-
-          it 'decreases balance by minimum balance (£1) when touching out' do
-            expect { subject.touch_out(exit_station) }.to change { subject.balance }.by(-Oystercard::MIN_CHARGE)
-          end
-        end
+      it 'deducts penalty fare if you touch in twice in a row' do
+        subject.top_up(60)
+        subject.touch_in(entry_station)
+        expect { subject.touch_in(entry_station) }.to change { subject.balance }.by(-Journey::PENALTY_FARE)
       end
     end
-  end
 
-  describe '#in_journey?' do
-    it 'in_journey should be false by default' do
-      expect(subject).not_to be_in_journey
+    describe '#touch_out' do
+      it 'can touch out' do
+        subject.top_up(3)
+        subject.touch_in(entry_station)
+        expect(subject.touch_out(exit_station)).to be_falsey
+      end
+
+      it 'can deduct from the balance' do
+        subject.top_up(10)
+        subject.touch_in(entry_station)
+        expect { subject.touch_out(exit_station) }.to change { subject.balance }.by(-1)
+      end
+
+      it 'deducts penalty fare if you touch out  without touching in' do
+        subject.top_up(60)
+        expect { subject.touch_out(exit_station) }.to change { subject.balance }.by(-Journey::PENALTY_FARE)
+      end
     end
-  end
-
-  describe '#history' do
-  let(:entry_station) { double :entry_station }
-  let(:exit_station) { double :exit_station }
-
-  before(:each) do
-    subject.top_up(10)
-    subject.touch_in(entry_station)
-    subject.touch_out(exit_station)
-  end
-
-  it 'returns instance variable with entry and exit station recorded' do
-    expect(subject.history).to include({entry_station: entry_station, exit_station: exit_station})
-  end
   end
 end
